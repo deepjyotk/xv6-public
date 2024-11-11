@@ -2,59 +2,59 @@
 #include "stat.h"
 #include "user.h"
 
-void test_specific_pid() {
-    printf(1, "Test 1: Change nice value for PID 1\n");
-    nice(1,3); //setting nice value of PID 1 to default (3)
-    int result = nice(1, 4);
-    printf(1, "Expected:\tPID 1, Old value 3 (default is 3)\n");
-    printf(1, "Actual:\t\tPID 1, Old value %d\n\n", result);
+void test_set_nice_for_pid() {
+    printf(1, "Scenario 1: Modifying nice value for PID 1\n");
+    nice(1, 3); // setting default nice value of PID 1 to 3
+    int previous = nice(1, 4);
+    printf(1, "Expected Outcome:\tPID 1, Previous value 3 (default is 3)\n");
+    printf(1, "Result:\t\t\tPID 1, Previous value %d\n\n", previous);
 }
 
-void test_current_process() {
-    printf(1, "Test 2: Change nice value for current process\n");
-    int pid = getpid();
-    int result = nice(pid, 2);
-    printf(1, "Expected:\tPID %d, Old value 3 (default is 3)\n", pid);
-    printf(1, "Actual:\t\tPID %d, Old value %d\n\n", pid, result);
+void test_adjust_self_nice() {
+    printf(1, "Scenario 2: Adjusting nice value for current process\n");
+    int current_pid = getpid();
+    int previous = nice(current_pid, 2);
+    printf(1, "Expected Outcome:\tPID %d, Previous value 3 (default is 3)\n", current_pid);
+    printf(1, "Result:\t\t\tPID %d, Previous value %d\n\n", current_pid, previous);
 }
 
-void test_out_of_bounds_lower() {
-    printf(1, "Test 3: Set out-of-bounds nice value (lower)\n");
-    int result = nice(1, 0);
-    printf(1, "Expected:\tError: Nice value must be between 1 and 5\n");
-    printf(1, "Actual:\t\t%s\n\n", 
-           (result == -2) ? "Error: Nice value must be between 1 and 5" : 
-           (result < 0) ? "Error: Invalid PID or Value" : "Unexpected success");
+void test_nice_value_below_min() {
+    printf(1, "Scenario 3: Attempting below-bound nice value\n");
+    int outcome = nice(1, 0);
+    printf(1, "Expected Outcome:\tError: Nice value must range from 1 to 5\n");
+    printf(1, "Result:\t\t\t%s\n\n", 
+           (outcome == -2) ? "Error: Nice value must range from 1 to 5" : 
+           (outcome < 0) ? "Error: Invalid PID or Value" : "Unexpected success");
 }
 
-void test_out_of_bounds_upper() {
-    printf(1, "Test 4: Set out-of-bounds nice value (upper)\n");
-    int result = nice(1, 6);
-    printf(1, "Expected:\tError: Nice value must be between 1 and 5\n");
-    printf(1, "Actual:\t\t%s\n\n", 
-           (result == -2) ? "Error: Nice value must be between 1 and 5" : 
-           (result < 0) ? "Error: Invalid PID or Value" : "Unexpected success");
+void test_nice_value_above_max() {
+    printf(1, "Scenario 4: Attempting above-bound nice value\n");
+    int outcome = nice(1, 6);
+    printf(1, "Expected Outcome:\tError: Nice value must range from 1 to 5\n");
+    printf(1, "Result:\t\t\t%s\n\n", 
+           (outcome == -2) ? "Error: Nice value must range from 1 to 5" : 
+           (outcome < 0) ? "Error: Invalid PID or Value" : "Unexpected success");
 }
 
-void test_nonexistent_pid() {
-    printf(1, "Test 5: Change nice value for non-existent PID\n");
+void test_nonexistent_process() {
+    printf(1, "Scenario 5: Changing nice value for a nonexistent PID\n");
     int result = nice(9999, 3);
-    printf(1, "Expected:\tError: Invalid PID or Value\n");
-    printf(1, "Actual:\t\t%s\n\n", (result < 0) ? "Error: Invalid PID or Value" : "Unexpected success");
+    printf(1, "Expected Outcome:\tError: Invalid PID or Value\n");
+    printf(1, "Result:\t\t\t%s\n\n", (result < 0) ? "Error: Invalid PID or Value" : "Unexpected success");
 }
 
-void test_multiple_changes() {
-    printf(1, "Test 6: Change nice value multiple times\n");
-    int pid = getpid();
-    int result1 = nice(pid, 2);
-    int result2 = nice(pid, 4);
-    printf(1, "Expected:\tFirst change - PID %d, Old value 3; Second change - PID %d, Old value 2\n", pid, pid);
-    printf(1, "Actual:\t\tFirst change - PID %d, Old value %d; Second change - PID %d, Old value %d\n\n", pid, result1, pid, result2);
+void test_repeated_nice_adjustments() {
+    printf(1, "Scenario 6: Applying multiple nice adjustments\n");
+    int current_pid = getpid();
+    int first_result = nice(current_pid, 2);
+    int second_result = nice(current_pid, 4);
+    printf(1, "Expected Outcome:\tFirst adjustment - PID %d, Previous value 3; Second adjustment - PID %d, Previous value 2\n", current_pid, current_pid);
+    printf(1, "Result:\t\t\tFirst adjustment - PID %d, Previous value %d; Second adjustment - PID %d, Previous value %d\n\n", current_pid, first_result, current_pid, second_result);
 }
 
-void run_test(void (*test_func)()) {
+void initiate_test(void (*test_case)()) {
     if (fork() == 0) {
-        test_func();
+        test_case();
         exit();
     } else {
         wait();
@@ -62,15 +62,15 @@ void run_test(void (*test_func)()) {
 }
 
 int main() {
-    printf(1, "Running nice system call tests\n\n");
+    printf(1, "Initiating tests for nice system call\n\n");
 
-    run_test(test_specific_pid);
-    run_test(test_current_process);
-    run_test(test_out_of_bounds_lower);
-    run_test(test_out_of_bounds_upper); 
-    run_test(test_nonexistent_pid);
-    run_test(test_multiple_changes);
+    initiate_test(test_set_nice_for_pid);
+    initiate_test(test_adjust_self_nice);
+    initiate_test(test_nice_value_below_min);
+    initiate_test(test_nice_value_above_max); 
+    initiate_test(test_nonexistent_process);
+    initiate_test(test_repeated_nice_adjustments);
     
-    printf(1, "All tests completed\n");
+    printf(1, "All test cases have been executed\n");
     exit();
 }
