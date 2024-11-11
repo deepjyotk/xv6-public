@@ -40,7 +40,11 @@ mycpu(void)
   int apicid, i;
   
   if(readeflags()&FL_IF)
-    panic("mycpu called with interrupts enabled\n");
+  {
+    //panic("mycpu called with interrupts enabled\n");
+    cprintf("Warning: mycpu called with interrupts enabled\n");
+    return 0;
+  }
   
   apicid = lapicid();
   // APIC IDs are not guaranteed to be contiguous. Maybe we should have
@@ -88,7 +92,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->nice_value = 3;  // Initialize nice value
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -149,6 +153,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  cprintf("userinit: Initial process set to RUNNABLE with pid %d\n", p->pid);
 
   release(&ptable.lock);
 }
@@ -311,48 +316,63 @@ wait(void)
   }
 }
 
-//PAGEBREAK: 42
-// Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run
-//  - swtch to start running that process
-//  - eventually that process transfers control
-//      via swtch back to the scheduler.
+#define TIME_QUANTUM 5 
+
 void
 scheduler(void)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
-  c->proc = 0;
+    struct proc *p;
+    struct cpu *c = mycpu();
+    c->proc = 0;
   
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
+    for(;;){
+        // Enable interrupts on this processor.
+        sti();
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+        // Loop over process table looking for process to run.
+        acquire(&ptable.lock);
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    #if PRIORITY_SCHEDULER
+        int highest_priority = 5;  
+        for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+            if (p->state == RUNNABLE && p->priority_value < highest_priority) {
+                highest_priority = p->priority_value;
+            }
+        }
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+        for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+            if (p->state == RUNNABLE && p->priority_value == highest_priority) {
+                c->proc = p;
+                switchuvm(p);
+                p->state = RUNNING;
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+                // Simulate time quantum
+                for (int i = 0; i < TIME_QUANTUM; i++) {
+                    swtch(&(c->scheduler), p->context);
+                    if (p->state != RUNNING)
+                        break;  // Process yielded or exited
+                }
+
+                switchkvm();
+                c->proc = 0;
+            }
+        }
+    #else
+        // cprintf("IN ROUND ROBIN SCHEDULER\n");
+        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+            if(p->state != RUNNABLE)
+                continue;
+            c->proc = p;
+            switchuvm(p);
+            p->state = RUNNING;
+
+            swtch(&(c->scheduler), p->context);
+            switchkvm();
+            c->proc = 0;
+        }
+    #endif
+        release(&ptable.lock);
     }
-    release(&ptable.lock);
-
-  }
 }
 
 // Enter scheduler.  Must hold only ptable.lock
@@ -531,4 +551,23 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int
+nice(int pid, int value)
+{
+  struct proc *p;
+  int old_value = -1;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      old_value = p->nice_value;
+      p->nice_value = value;
+      p->priority_value = value;
+      break;
+    }
+  }
+  release(&ptable.lock);
+  return old_value;
 }
